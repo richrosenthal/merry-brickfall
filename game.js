@@ -25,6 +25,34 @@ const ball = {
     vy: -140
 };
 
+// Bricks config
+const brickConfig = {
+  rows: 5,
+  cols: 8,
+  w: 48,
+  h: 16,
+  padding: 6,
+  offsetTop: 50,
+  offsetLeft: 20
+};
+
+// 2D array of bricks
+let bricks = [];
+
+function initBricks() {
+  bricks = [];
+  for (let row = 0; row < brickConfig.rows; row++) {
+    bricks[row] = [];
+    for (let col = 0; col < brickConfig.cols; col++) {
+      const x = brickConfig.offsetLeft + col * (brickConfig.w + brickConfig.padding);
+      const y = brickConfig.offsetTop + row * (brickConfig.h + brickConfig.padding);
+      bricks[row][col] = { x, y, alive: true };
+    }
+  }
+}
+
+initBricks();
+
 //input flags
 let leftPressed = false;
 let rightPressed = false;
@@ -103,6 +131,32 @@ function update(dt) {
     ball.y = paddleTop - ball.r; // prevent sticking
     ball.vy *= -1;
   }
+    // Brick collisions
+  for (let row = 0; row < brickConfig.rows; row++) {
+    for (let col = 0; col < brickConfig.cols; col++) {
+      const brick = bricks[row][col];
+      if (!brick.alive) continue;
+
+      const bx = brick.x;
+      const by = brick.y;
+      const bw = brickConfig.w;
+      const bh = brickConfig.h;
+
+      // simple AABB vs circle check
+      if (
+        ball.x + ball.r > bx &&
+        ball.x - ball.r < bx + bw &&
+        ball.y + ball.r > by &&
+        ball.y - ball.r < by + bh
+      ) {
+        brick.alive = false;
+        ball.vy *= -1; // bounce vertically
+        // simple exit so we don't hit multiple bricks at once
+        row = brickConfig.rows;
+        break;
+      }
+    }
+  }
 
   // Fall below screen (temporary reset)
   if (ball.y - ball.r > canvas.height) {
@@ -119,6 +173,17 @@ function draw(){
     //simple background placeholder
     ctx.fillStyle = "#0f1a33";
     ctx.fillRect(0,0, canvas.width, canvas.height);
+
+      // bricks
+  for (let row = 0; row < brickConfig.rows; row++) {
+    for (let col = 0; col < brickConfig.cols; col++) {
+      const brick = bricks[row][col];
+      if (!brick.alive) continue;
+
+      ctx.fillStyle = "white";
+      ctx.fillRect(brick.x, brick.y, brickConfig.w, brickConfig.h);
+    }
+  }
 
     // paddle
     ctx.fillStyle = "white";
