@@ -16,6 +16,15 @@ const paddle = {
     vx: 0 // current horizontal velocity
 };
 
+// Ball
+const ball = {
+    x: canvas.width / 2,
+    y: canvas.height - 40,
+    r: 6,
+    vx: 140,
+    vy: -140
+};
+
 //input flags
 let leftPressed = false;
 let rightPressed = false;
@@ -31,23 +40,76 @@ document.addEventListener("keyup", (e) => {
     if (e.key === "ArrowRight") rightPressed = false;
 });
 
-
-// Update function to change game state
-function update(dt){
-
-   paddle.vx = 0;
-   if (leftPressed) paddle.vx = -paddle.speed;
-   if (rightPressed) paddle.vx = paddle.speed;
-
-   //2 move paddle using dt (frame-rate independent)
-   paddle.x += paddle.vx * dt;
-
-   //3 Clamp paddle to screen
-   if (paddle.x < 0) paddle.x = 0;
-   if (paddle.x + paddle.w > canvas.width){
-     paddle.x = canvas.width - paddle.w;
-   } 
+// --------------------
+// HELPERS
+// --------------------
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height - 40;
+  ball.vx = 140;
+  ball.vy = -140;
 }
+
+// --------------------
+// UPDATE
+// --------------------
+function update(dt) {
+  // Paddle movement
+  paddle.vx = 0;
+  if (leftPressed) paddle.vx = -paddle.speed;
+  if (rightPressed) paddle.vx = paddle.speed;
+
+  paddle.x += paddle.vx * dt;
+
+  if (paddle.x < 0) paddle.x = 0;
+  if (paddle.x + paddle.w > canvas.width) {
+    paddle.x = canvas.width - paddle.w;
+  }
+
+  // ----------------
+  // Ball movement
+  // ----------------
+  ball.x += ball.vx * dt;
+  ball.y += ball.vy * dt;
+
+  // Wall bounce (left/right)
+  if (ball.x - ball.r <= 0) {
+    ball.x = ball.r;
+    ball.vx *= -1;
+  }
+  if (ball.x + ball.r >= canvas.width) {
+    ball.x = canvas.width - ball.r;
+    ball.vx *= -1;
+  }
+
+  // Ceiling bounce
+  if (ball.y - ball.r <= 0) {
+    ball.y = ball.r;
+    ball.vy *= -1;
+  }
+
+  // Paddle bounce
+  const paddleTop = paddle.y;
+  const paddleLeft = paddle.x;
+  const paddleRight = paddle.x + paddle.w;
+
+  if (
+    ball.y + ball.r >= paddleTop &&
+    ball.y + ball.r <= paddleTop + paddle.h &&
+    ball.x >= paddleLeft &&
+    ball.x <= paddleRight &&
+    ball.vy > 0
+  ) {
+    ball.y = paddleTop - ball.r; // prevent sticking
+    ball.vy *= -1;
+  }
+
+  // Fall below screen (temporary reset)
+  if (ball.y - ball.r > canvas.height) {
+    resetBall();
+  }
+}
+
 
 //Draw - render game state
 function draw(){
@@ -62,9 +124,14 @@ function draw(){
     ctx.fillStyle = "white";
     ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
 
+    // ball
+    ctx.beginPath();
+    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+    ctx.fill();
+
     //debug text
     ctx.font = "14px monospace";
-    ctx.fillText("Step 2 move paddle ← →", 12, 20);
+    ctx.fillText("Step 3 ball + paddle bounce", 12, 20);
 }
 
 // Game Loop
