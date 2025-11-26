@@ -1,215 +1,283 @@
+/****************************************************
+ * Merry Brickfall - Core Game Code (Refactored)
+ *
+ * This file is written to be readable and teachable.
+ * Every block is commented, and variable names are
+ * descriptive to make the game's logic clear.
+ ****************************************************/
+
+// --------------------------------------------------
+// CANVAS SETUP
+// --------------------------------------------------
 const canvas = document.getElementById("game");
 const ctx = canvas.getContext("2d");
 
-//game state variables
-//game state
-let lastTime = 0; //will store the timestamp of the previous frame
-let running = true; //this is just a flag, later we can set it to false to pause or stop the game loop
+// Used for frame rate–independent movement
+let previousFrameTime = 0;
 
-//Paddle object
+// Toggles the game loop on/off (useful later)
+let gameIsRunning = true;
+
+
+// --------------------------------------------------
+// PADDLE (player-controlled)
+// --------------------------------------------------
 const paddle = {
-    w: 80,
-    h: 12,
-    x: canvas.width / 2 - 80 / 2, // centered horizontally
-    y: canvas.height -20, //near bottom
-    speed: 300, //pixels per second
-    vx: 0 // current horizontal velocity
+  width: 80,
+  height: 12,
+
+  // Start centered horizontally
+  x: canvas.width / 2 - 80 / 2,
+
+  // Near the bottom of the screen
+  y: canvas.height - 20,
+
+  // Movement speed (pixels per second)
+  moveSpeed: 300,
+
+  // Current horizontal velocity
+  velocityX: 0
 };
 
-// Ball
+
+// --------------------------------------------------
+// BALL
+// --------------------------------------------------
 const ball = {
-    x: canvas.width / 2,
-    y: canvas.height - 40,
-    r: 6,
-    vx: 140,
-    vy: -140
+  x: canvas.width / 2,
+  y: canvas.height - 40,
+
+  radius: 6,
+
+  // Velocity in X and Y (pixels per second)
+  velocityX: 140,
+  velocityY: -140
 };
 
-// Bricks config
-const brickConfig = {
+// Reset ball to starting position
+function resetBall() {
+  ball.x = canvas.width / 2;
+  ball.y = canvas.height - 40;
+  ball.velocityX = 140;
+  ball.velocityY = -140;
+}
+
+
+// --------------------------------------------------
+// BRICK CONFIGURATION
+// --------------------------------------------------
+const brickSettings = {
   rows: 5,
   cols: 8,
-  w: 48,
-  h: 16,
+
+  width: 48,
+  height: 16,
+
   padding: 6,
+
+  // Offsets so bricks do not touch screen edges
   offsetTop: 50,
   offsetLeft: 20
 };
 
-// 2D array of bricks
-let bricks = [];
+// 2D array of brick objects
+let brickGrid = [];
 
-function initBricks() {
-  bricks = [];
-  for (let row = 0; row < brickConfig.rows; row++) {
-    bricks[row] = [];
-    for (let col = 0; col < brickConfig.cols; col++) {
-      const x = brickConfig.offsetLeft + col * (brickConfig.w + brickConfig.padding);
-      const y = brickConfig.offsetTop + row * (brickConfig.h + brickConfig.padding);
-      bricks[row][col] = { x, y, alive: true };
+function createBrickGrid() {
+  brickGrid = [];
+
+  for (let row = 0; row < brickSettings.rows; row++) {
+    brickGrid[row] = [];
+
+    for (let col = 0; col < brickSettings.cols; col++) {
+      const brickX =
+        brickSettings.offsetLeft +
+        col * (brickSettings.width + brickSettings.padding);
+
+      const brickY =
+        brickSettings.offsetTop +
+        row * (brickSettings.height + brickSettings.padding);
+
+      brickGrid[row][col] = {
+        x: brickX,
+        y: brickY,
+        alive: true
+      };
     }
   }
 }
 
-initBricks();
+createBrickGrid();
 
-//input flags
-let leftPressed = false;
-let rightPressed = false;
 
-//Input listeners
-document.addEventListener("keydown", (e) => {
-    if (e.key === "ArrowLeft") leftPressed = true;
-    if (e.key === "ArrowRight") rightPressed = true;
+// --------------------------------------------------
+// PLAYER INPUT
+// --------------------------------------------------
+let isLeftArrowPressed = false;
+let isRightArrowPressed = false;
+
+document.addEventListener("keydown", (event) => {
+  if (event.key === "ArrowLeft") isLeftArrowPressed = true;
+  if (event.key === "ArrowRight") isRightArrowPressed = true;
 });
 
-document.addEventListener("keyup", (e) => {
-    if (e.key === "ArrowLeft") leftPressed = false;
-    if (e.key === "ArrowRight") rightPressed = false;
+document.addEventListener("keyup", (event) => {
+  if (event.key === "ArrowLeft") isLeftArrowPressed = false;
+  if (event.key === "ArrowRight") isRightArrowPressed = false;
 });
 
-// --------------------
-// HELPERS
-// --------------------
-function resetBall() {
-  ball.x = canvas.width / 2;
-  ball.y = canvas.height - 40;
-  ball.vx = 140;
-  ball.vy = -140;
-}
 
-// --------------------
-// UPDATE
-// --------------------
-function update(dt) {
-  // Paddle movement
-  paddle.vx = 0;
-  if (leftPressed) paddle.vx = -paddle.speed;
-  if (rightPressed) paddle.vx = paddle.speed;
+// --------------------------------------------------
+// GAME UPDATE (runs every frame)
+// --------------------------------------------------
+function updateGame(deltaTime) {
+  // -------------------------
+  // 1. Paddle Movement
+  // -------------------------
+  paddle.velocityX = 0;
 
-  paddle.x += paddle.vx * dt;
+  if (isLeftArrowPressed) paddle.velocityX = -paddle.moveSpeed;
+  if (isRightArrowPressed) paddle.velocityX = paddle.moveSpeed;
 
+  // Move paddle using velocity * deltaTime
+  paddle.x += paddle.velocityX * deltaTime;
+
+  // Prevent paddle from leaving screen bounds
   if (paddle.x < 0) paddle.x = 0;
-  if (paddle.x + paddle.w > canvas.width) {
-    paddle.x = canvas.width - paddle.w;
+  if (paddle.x + paddle.width > canvas.width) {
+    paddle.x = canvas.width - paddle.width;
   }
 
-  // ----------------
-  // Ball movement
-  // ----------------
-  ball.x += ball.vx * dt;
-  ball.y += ball.vy * dt;
+  // -------------------------
+  // 2. Ball Movement
+  // -------------------------
+  ball.x += ball.velocityX * deltaTime;
+  ball.y += ball.velocityY * deltaTime;
 
-  // Wall bounce (left/right)
-  if (ball.x - ball.r <= 0) {
-    ball.x = ball.r;
-    ball.vx *= -1;
+  // Bounce off left/right walls
+  if (ball.x - ball.radius <= 0) {
+    ball.x = ball.radius;
+    ball.velocityX *= -1;
   }
-  if (ball.x + ball.r >= canvas.width) {
-    ball.x = canvas.width - ball.r;
-    ball.vx *= -1;
-  }
-
-  // Ceiling bounce
-  if (ball.y - ball.r <= 0) {
-    ball.y = ball.r;
-    ball.vy *= -1;
+  if (ball.x + ball.radius >= canvas.width) {
+    ball.x = canvas.width - ball.radius;
+    ball.velocityX *= -1;
   }
 
-  // Paddle bounce
-  const paddleTop = paddle.y;
-  const paddleLeft = paddle.x;
-  const paddleRight = paddle.x + paddle.w;
-
-  if (
-    ball.y + ball.r >= paddleTop &&
-    ball.y + ball.r <= paddleTop + paddle.h &&
-    ball.x >= paddleLeft &&
-    ball.x <= paddleRight &&
-    ball.vy > 0
-  ) {
-    ball.y = paddleTop - ball.r; // prevent sticking
-    ball.vy *= -1;
+  // Bounce off ceiling
+  if (ball.y - ball.radius <= 0) {
+    ball.y = ball.radius;
+    ball.velocityY *= -1;
   }
-    // Brick collisions
-  for (let row = 0; row < brickConfig.rows; row++) {
-    for (let col = 0; col < brickConfig.cols; col++) {
-      const brick = bricks[row][col];
+
+  // -------------------------
+  // 3. Ball → Paddle Collision
+  // -------------------------
+  const paddleTopY = paddle.y;
+  const paddleLeftX = paddle.x;
+  const paddleRightX = paddle.x + paddle.width;
+
+  const ballBottomY = ball.y + ball.radius;
+
+  const ballHitsPaddle =
+    ballBottomY >= paddleTopY &&
+    ballBottomY <= paddleTopY + paddle.height &&
+    ball.x >= paddleLeftX &&
+    ball.x <= paddleRightX &&
+    ball.velocityY > 0;
+
+  if (ballHitsPaddle) {
+    ball.y = paddleTopY - ball.radius; // keep ball above paddle
+    ball.velocityY *= -1; // bounce upward
+  }
+
+  // -------------------------
+  // 4. Ball → Brick Collision
+  // -------------------------
+  for (let row = 0; row < brickSettings.rows; row++) {
+    for (let col = 0; col < brickSettings.cols; col++) {
+      const brick = brickGrid[row][col];
       if (!brick.alive) continue;
 
-      const bx = brick.x;
-      const by = brick.y;
-      const bw = brickConfig.w;
-      const bh = brickConfig.h;
+      // Simple bounding-box vs ball test
+      const collision =
+        ball.x + ball.radius > brick.x &&
+        ball.x - ball.radius < brick.x + brickSettings.width &&
+        ball.y + ball.radius > brick.y &&
+        ball.y - ball.radius < brick.y + brickSettings.height;
 
-      // simple AABB vs circle check
-      if (
-        ball.x + ball.r > bx &&
-        ball.x - ball.r < bx + bw &&
-        ball.y + ball.r > by &&
-        ball.y - ball.r < by + bh
-      ) {
+      if (collision) {
         brick.alive = false;
-        ball.vy *= -1; // bounce vertically
-        // simple exit so we don't hit multiple bricks at once
-        row = brickConfig.rows;
+        ball.velocityY *= -1;
+
+        // Exit loops early (prevents multi-hit issues)
+        row = brickSettings.rows;
         break;
       }
     }
   }
 
-  // Fall below screen (temporary reset)
-  if (ball.y - ball.r > canvas.height) {
+  // -------------------------
+  // 5. Ball falls below screen
+  // -------------------------
+  if (ball.y - ball.radius > canvas.height) {
     resetBall();
   }
 }
 
 
-//Draw - render game state
-function draw(){
-    //clear screen
-    ctx.clearRect(0,0, canvas.width, canvas.height);
-    
-    //simple background placeholder
-    ctx.fillStyle = "#0f1a33";
-    ctx.fillRect(0,0, canvas.width, canvas.height);
+// --------------------------------------------------
+// GAME DRAWING (runs every frame)
+// --------------------------------------------------
+function drawGame() {
+  // Clear screen
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-      // bricks
-  for (let row = 0; row < brickConfig.rows; row++) {
-    for (let col = 0; col < brickConfig.cols; col++) {
-      const brick = bricks[row][col];
+  // Draw background
+  ctx.fillStyle = "#0f1a33";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Draw bricks
+  for (let row = 0; row < brickSettings.rows; row++) {
+    for (let col = 0; col < brickSettings.cols; col++) {
+      const brick = brickGrid[row][col];
       if (!brick.alive) continue;
 
       ctx.fillStyle = "white";
-      ctx.fillRect(brick.x, brick.y, brickConfig.w, brickConfig.h);
+      ctx.fillRect(brick.x, brick.y, brickSettings.width, brickSettings.height);
     }
   }
 
-    // paddle
-    ctx.fillStyle = "white";
-    ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+  // Draw paddle
+  ctx.fillStyle = "white";
+  ctx.fillRect(paddle.x, paddle.y, paddle.width, paddle.height);
 
-    // ball
-    ctx.beginPath();
-    ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
-    ctx.fill();
+  // Draw ball
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.radius, 0, Math.PI * 2);
+  ctx.fill();
 
-    //debug text
-    ctx.font = "14px monospace";
-    ctx.fillText("Step 3 ball + paddle bounce", 12, 20);
+  // Debug text
+  ctx.font = "14px monospace";
+  ctx.fillText("Merry Brickfall, 10, 20);
 }
 
-// Game Loop
-function loop(timestamp){
-    if (!running) return;
 
-    const dt = (timestamp - lastTime)/ 1000; //ms to seconds
-    lastTime = timestamp;
+// --------------------------------------------------
+// GAME LOOP (animation frame by frame)
+// --------------------------------------------------
+function gameLoop(currentTime) {
+  if (!gameIsRunning) return;
 
-    update(dt);
-    draw();
+  // Convert from milliseconds → seconds
+  const deltaTime = (currentTime - previousFrameTime) / 1000;
+  previousFrameTime = currentTime;
 
-    requestAnimationFrame(loop);
+  updateGame(deltaTime);
+  drawGame();
+
+  requestAnimationFrame(gameLoop);
 }
 
-requestAnimationFrame(loop);
+// Start the game
+requestAnimationFrame(gameLoop);
