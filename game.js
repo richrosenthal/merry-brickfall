@@ -259,7 +259,7 @@ function drawGame() {
 
   // Debug text
   ctx.font = "14px monospace";
-  ctx.fillText("Merry Brickfall, 10, 20);
+  ctx.fillText("Merry Brickfall", 10, 20);
 }
 
 
